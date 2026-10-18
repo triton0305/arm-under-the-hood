@@ -247,21 +247,47 @@ Exercises are organized around source code, instruction behavior, debugging, and
 ## Learning History
 
 <details>
-<summary><strong>2026-10-18 — AArch64 Cross Assembly and Execution</strong></summary>
+<summary><strong>2026-10-16 — AArch64 Basics, Branching, and Memory Access</strong></summary>
 
-- Confirmed the x86-64 host architecture.
-- Assembled AArch64 code using the cross assembler.
-- Linked and verified the ARM64 executable.
-- Executed the binary using QEMU User Mode.
+<br>
+
+- Set up an AArch64 assembly study environment on Raspberry Pi 4.
+- Learned the Linux AArch64 syscall convention using `x0`, `x8`, and `svc #0`.
+- Implemented `exit.s` and verified process exit status with `echo $?`.
+- Implemented `write.s` using the Linux `write` syscall.
+- Learned `.text`, `.data`, `.ascii`, `.quad`, labels, and address loading.
+- Practiced `mov`, `add`, `sub`, and `cmp`.
+- Examined how `cmp` updates condition flags and how `beq` / `bne` use the Zero flag.
+- Used GDB to inspect registers, PC, condition flags, and execute instructions with `stepi`.
+- Implemented `memory.s` using `ldr` and `str`.
+- Connected AArch64 memory access with C pointer concepts:
+  - `ldr x0, =value` → address of `value`
+  - `ldr x1, [x0]` → dereference and load
+  - `str x1, [x0]` → store through an address
+- Verified a memory value changing from `10` to `15` before and after `str`.
+- Implemented `array.s` to practice base address and byte offset addressing.
+- Verified consecutive `.quad` values using GDB:
+  - `[x0]` → `10`
+  - `[x0, #8]` → `20`
+  - `[x0, #16]` → `30`
 
 </details>
 
 <details>
-<summary><strong>2026-10-16 — AArch64 Basics, Branching, and Memory Access</strong></summary>
+<summary><strong>2026-10-18 — AArch64 Cross Assembly and Execution</strong></summary>
 
-- Practiced Linux system calls and basic instructions.
-- Examined conditional branches and condition flags.
-- Practiced memory access, pointers, and arrays.
-- Verified register and memory behavior using GDB.
+<br>
+
+- Cloned the repository into the WSL development environment.
+- Confirmed the host architecture as `x86_64` using `uname -m`.
+- Observed assembler errors when processing AArch64 instructions with the native x86-64 assembler.
+- Installed `binutils-aarch64-linux-gnu`.
+- Assembled `array.s` using `aarch64-linux-gnu-as`.
+- Verified the object file as an AArch64 relocatable ELF using `file`.
+- Linked the object file using `aarch64-linux-gnu-ld`.
+- Verified the resulting executable as an AArch64 ELF.
+- Executed the ARM64 binary using `qemu-aarch64`.
+- Confirmed successful execution with exit status `0`.
+- Compared native and cross-build commands across the Raspberry Pi and WSL environments.
 
 </details>
