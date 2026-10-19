@@ -4,3 +4,5 @@ write
 calc
 memory
 array
+structure
+mmio_mock
