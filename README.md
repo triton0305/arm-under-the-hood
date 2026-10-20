@@ -35,7 +35,8 @@ The focus is on understanding ARM CPU behavior and the role of low-level code in
 
 - Windows 11
 - WSL2 Ubuntu (x86-64)
-- GNU AArch64 cross-binutils
+- GNU GCC for native x86-64 compilation
+- GNU AArch64 cross-GCC and cross-binutils
 - QEMU User Mode
 
 Linux user-space exercises use Linux system calls. U-Boot exercises run before Linux and return to U-Boot when finished, except for continuous hardware-control demos.
@@ -95,8 +96,13 @@ The planned introductory AArch64 assembly course was completed on **2026-10-20**
 - ✅ AArch64 Cross Assembly
 - ✅ AArch64 Cross Linking
 - ✅ ELF architecture verification
-- ✅ QEMU User Mode execution of a Linux user-space example
-- ⬜ C Cross Compilation
+- ✅ QEMU User Mode execution of Linux user-space examples
+- ✅ C Cross Compilation
+- ✅ C → Assembly → Object → Executable build pipeline
+- ✅ Static linking through the GCC driver
+- ✅ Compiler optimization comparison: `-O0`, `-O1`, and `-O2`
+- ✅ x86-64 and AArch64 compiler-generated assembly comparison
+- ✅ System V AMD64 and AAPCS64 calling convention comparison
 - ⬜ Sysroot and Target Libraries
 - ⬜ Remote Debugging with GDB
 
@@ -355,6 +361,54 @@ The program returned to U-Boot, and the result stored at `0x02001000` was confir
 
 </details>
 
+<details>
+<summary><code>add.c</code>, <code>add.s</code>, <code>add-arm64.s</code>, and <code>add-x86.s</code> — C cross compilation and generated assembly</summary>
+
+<br>
+
+Cross-compiles a small C program for Linux AArch64 and compares compiler-generated assembly across architectures and optimization levels.
+
+```c
+int add(int a, int b)
+{
+    return a + b;
+}
+
+int main(void)
+{
+    int result = add(10, 20);
+    return result - 30;
+}
+```
+
+Files:
+
+| File | Purpose |
+|---|---|
+| `add.c` | C source used for compilation and execution |
+| `add.s` | AArch64 assembly generated with default optimization (`-O0`) |
+| `add-arm64.s` | AArch64 assembly retained for architecture comparison |
+| `add-x86.s` | x86-64 assembly retained for architecture comparison |
+
+Topics:
+
+- C → Assembly → Object → Executable
+- Cross-GCC, assembler, and linker roles
+- Relocatable and executable ELF files
+- Static linking and C runtime startup code
+- `_start` versus `main`
+- Compiler optimization at `-O0`, `-O1`, and `-O2`
+- Stack accesses and function-call elimination
+- System V AMD64 versus AAPCS64
+
+At `-O0`, the generated AArch64 code stores arguments and local values on the stack and calls `add` from `main`.
+
+In the optimized output examined during the exercise, `add` became a register addition, and `main` was reduced to returning zero.
+
+The statically linked AArch64 executable was run on the x86-64 host using QEMU User Mode and returned exit status `0`. Execution on the Raspberry Pi target has not yet been verified for this C example.
+
+</details>
+
 ## Build
 
 The build and execution method depends on whether an exercise targets Linux user space or U-Boot.
@@ -409,6 +463,92 @@ Verified exit status:
 The native assembler on the x86-64 host cannot assemble AArch64 instructions. The cross-toolchain generates ARM64 object files and executables, while QEMU User Mode executes the Linux user-space binary.
 
 QEMU User Mode is used here for Linux examples. The GPIO MMIO exercises are verified on Raspberry Pi hardware under U-Boot.
+
+### Linux User Space — C Cross Compilation on WSL
+
+Generate AArch64 assembly from C, then assemble it into a relocatable object:
+
+```bash
+aarch64-linux-gnu-gcc -S add.c -o add.s
+aarch64-linux-gnu-as add.s -o add.o
+file add.o
+```
+
+With no optimization option specified, GCC uses `-O0`.
+
+Link through the GCC driver to include the C runtime startup files and required libraries:
+
+```bash
+aarch64-linux-gnu-gcc -static add.o -o add
+file add
+```
+
+Verified file properties:
+
+| File | Verified Properties |
+|---|---|
+| `add.o` | ELF 64-bit LSB relocatable, ARM aarch64 |
+| `add` | ELF 64-bit LSB executable, ARM aarch64, statically linked |
+
+Execute using QEMU User Mode:
+
+```bash
+qemu-aarch64 ./add
+echo $?
+```
+
+Verified exit status:
+
+```text
+0
+```
+
+The program returns `add(10, 20) - 30`, so zero is the expected result.
+
+#### Compare Optimization Levels
+
+Generate separate assembly files without overwriting the retained examples:
+
+```bash
+aarch64-linux-gnu-gcc -O0 -S add.c -o /tmp/add-arm64-O0.s
+aarch64-linux-gnu-gcc -O1 -S add.c -o /tmp/add-arm64-O1.s
+aarch64-linux-gnu-gcc -O2 -S add.c -o /tmp/add-arm64-O2.s
+```
+
+For this program, the examined optimized output removed the call to `add` from `main` and returned zero directly.
+
+Compare x86-64 and AArch64 output at the same optimization level:
+
+```bash
+gcc -O2 -S add.c -o /tmp/add-x86-O2.s
+aarch64-linux-gnu-gcc -O2 -S add.c -o /tmp/add-arm64-O2.s
+```
+
+Exact assembly output depends on the compiler version, target, and compilation options.
+
+#### GCC Driver versus Direct LD Invocation
+
+Directly linking this C object with:
+
+```bash
+aarch64-linux-gnu-ld add.o -o add
+```
+
+produced:
+
+```text
+warning: cannot find entry symbol _start
+```
+
+The object defines `main`, but does not define the process entry point `_start`. Calling LD directly does not automatically include the usual C runtime startup files.
+
+Using the GCC driver resolved the link setup:
+
+```bash
+aarch64-linux-gnu-gcc -static add.o -o add
+```
+
+This differs from the handwritten Linux assembly examples in this repository, which define their own `_start` and can be linked directly with LD.
 
 ### U-Boot — GPIO Example
 
@@ -612,5 +752,33 @@ A separate U-Boot C LED/KEY assignment was also prepared. Its key-state logic wa
 - Verified the nested-call result `(10 + 20) + 5 = 35` and return to the U-Boot prompt.
 - Reviewed the basic AAPCS64 rules for argument passing, return values, register preservation, and 16-byte stack alignment.
 - Completed the planned introductory AArch64 assembly course.
+
+</details>
+
+<details>
+<summary><strong>2026-10-20 — C Cross Compilation, Optimization, and ABI Comparison on WSL</strong></summary>
+
+<br>
+
+This evening session used WSL Ubuntu on the x86-64 laptop, separately from the Raspberry Pi function-call and stack exercises.
+
+- Created `add.c` in `~/study/cross-compile-lab`.
+- Generated AArch64 assembly using `aarch64-linux-gnu-gcc -S`.
+- Assembled the generated source using `aarch64-linux-gnu-as`.
+- Verified `add.o` as an AArch64 relocatable ELF.
+- Encountered a missing `_start` warning when invoking LD directly on the C object.
+- Distinguished the process entry point `_start` from the C function `main`.
+- Linked through `aarch64-linux-gnu-gcc -static` to include C runtime startup files and required libraries.
+- Verified the resulting executable as a statically linked AArch64 ELF.
+- Executed the program using `qemu-aarch64` and confirmed exit status `0`.
+- Compared assembly generated at `-O0`, `-O1`, and `-O2`.
+- Observed stack accesses and a function call in the unoptimized output.
+- Observed optimized output reducing `main` to returning zero.
+- Compared x86-64 and AArch64 instructions and argument-passing registers.
+- Reviewed System V AMD64 and AAPCS64, including return addresses, register preservation, and stack alignment.
+- Distinguished normal function returns from Linux system calls.
+- Copied the C source and retained assembly outputs into the repository root.
+
+The C example has been verified under QEMU User Mode. Raspberry Pi execution, dynamic linking and sysroot exercises, and remote debugging remain future work.
 
 </details>
