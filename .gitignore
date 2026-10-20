@@ -8,3 +8,4 @@ structure
 mmio_mock
 uboot_return
 *.elf
+function_call
