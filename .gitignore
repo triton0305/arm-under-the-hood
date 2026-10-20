@@ -6,3 +6,5 @@ memory
 array
 structure
 mmio_mock
+uboot_return
+*.elf
