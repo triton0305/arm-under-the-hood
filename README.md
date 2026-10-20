@@ -411,9 +411,12 @@ The statically linked AArch64 executable was run on the x86-64 host using QEMU U
 
 ## Build
 
-The build and execution method depends on whether an exercise targets Linux user space or U-Boot.
+Select the build and execution environment for each exercise.
 
-### Linux User Space — Native Build on Raspberry Pi
+<details>
+<summary><strong>Linux User Space — Native Assembly Build on Raspberry Pi</strong></summary>
+
+<br>
 
 Assembly and linking are performed directly on the ARM64 target.
 
@@ -424,9 +427,14 @@ ld array.o -o array
 echo $?
 ```
 
-### Linux User Space — Cross Build on WSL
+</details>
 
-The same Linux AArch64 source can be assembled and linked on the x86-64 host using the cross-toolchain.
+<details>
+<summary><strong>Linux User Space — Cross Assembly Build on WSL</strong></summary>
+
+<br>
+
+Assemble and link Linux AArch64 source on the x86-64 host:
 
 ```bash
 aarch64-linux-gnu-as array.s -o array.o
@@ -447,7 +455,7 @@ array.o: ELF 64-bit LSB relocatable, ARM aarch64
 array:   ELF 64-bit LSB executable, ARM aarch64
 ```
 
-Execute the ARM64 binary using QEMU User Mode:
+Execute using QEMU User Mode:
 
 ```bash
 qemu-aarch64 ./array
@@ -460,11 +468,16 @@ Verified exit status:
 0
 ```
 
-The native assembler on the x86-64 host cannot assemble AArch64 instructions. The cross-toolchain generates ARM64 object files and executables, while QEMU User Mode executes the Linux user-space binary.
+The native x86-64 assembler cannot assemble AArch64 instructions. The cross-toolchain generates ARM64 files, while QEMU User Mode executes the Linux user-space binary.
 
-QEMU User Mode is used here for Linux examples. The GPIO MMIO exercises are verified on Raspberry Pi hardware under U-Boot.
+GPIO MMIO exercises are verified separately on Raspberry Pi hardware under U-Boot.
 
-### Linux User Space — C Cross Compilation on WSL
+</details>
+
+<details>
+<summary><strong>Linux User Space — C Cross Compilation on WSL</strong></summary>
+
+<br>
 
 Generate AArch64 assembly from C, then assemble it into a relocatable object:
 
@@ -505,7 +518,7 @@ Verified exit status:
 
 The program returns `add(10, 20) - 30`, so zero is the expected result.
 
-#### Compare Optimization Levels
+### Compare Optimization Levels
 
 Generate separate assembly files without overwriting the retained examples:
 
@@ -515,7 +528,7 @@ aarch64-linux-gnu-gcc -O1 -S add.c -o /tmp/add-arm64-O1.s
 aarch64-linux-gnu-gcc -O2 -S add.c -o /tmp/add-arm64-O2.s
 ```
 
-For this program, the examined optimized output removed the call to `add` from `main` and returned zero directly.
+In the optimized output examined during the exercise, `main` returned zero directly without calling `add`.
 
 Compare x86-64 and AArch64 output at the same optimization level:
 
@@ -526,7 +539,7 @@ aarch64-linux-gnu-gcc -O2 -S add.c -o /tmp/add-arm64-O2.s
 
 Exact assembly output depends on the compiler version, target, and compilation options.
 
-#### GCC Driver versus Direct LD Invocation
+### GCC Driver versus Direct LD Invocation
 
 Directly linking this C object with:
 
@@ -548,9 +561,14 @@ Using the GCC driver resolved the link setup:
 aarch64-linux-gnu-gcc -static add.o -o add
 ```
 
-This differs from the handwritten Linux assembly examples in this repository, which define their own `_start` and can be linked directly with LD.
+The handwritten Linux assembly examples define their own `_start` and can be linked directly with LD.
 
-### U-Boot — GPIO Example
+</details>
+
+<details>
+<summary><strong>U-Boot — GPIO Example</strong></summary>
+
+<br>
 
 Build on Raspberry Pi while Linux is running:
 
@@ -569,9 +587,14 @@ setenv autostart yes
 bootelf -p ${loadaddr}
 ```
 
-In the verified setup, `${loadaddr}` is `0x01000000`. U-Boot reads the ELF file there, then loads its segments to the linked addresses. The entry point used in these examples is `0x02000000`.
+In the verified setup, `${loadaddr}` is `0x01000000`. U-Boot reads the ELF file there, then loads its segments to the linked addresses. The entry point is `0x02000000`.
 
-### U-Boot — Function Call Example
+</details>
+
+<details>
+<summary><strong>U-Boot — Function Call Example</strong></summary>
+
+<br>
 
 Place `.text` at `0x02000000` and `.data` at `0x02001000` so the result has a known address for inspection.
 
@@ -591,7 +614,16 @@ bootelf -p ${loadaddr}
 md.q 0x02001000 1
 ```
 
-### U-Boot — Nested Calls and Stack Example
+Verified result: `10 + 20 = 30` (`0x1e`).
+
+</details>
+
+<details>
+<summary><strong>U-Boot — Nested Calls and Stack Example</strong></summary>
+
+<br>
+
+Build on Raspberry Pi:
 
 ```bash
 as function_stack.s -o function_stack.o
@@ -609,14 +641,13 @@ bootelf -p ${loadaddr}
 md.q 0x02001000 1
 ```
 
-| Example | Calculation | Verified Result |
-|---|---|---|
-| `function_call.s` | `10 + 20` | `0x1e` / `30` |
-| `function_stack.s` | `(10 + 20) + 5` | `0x23` / `35` |
+Verified result: `(10 + 20) + 5 = 35` (`0x23`).
 
-These exercises inspect their results in memory after returning to U-Boot. The build used for verification did not print an application return-code message.
+Both function examples inspect their results in memory after returning to U-Boot. The build used for verification did not print an application return-code message.
 
-GNU ld issued a warning about a LOAD segment with RWX permissions when the code and data were linked into the same segment. The ELF was generated, and both examples were subsequently verified under U-Boot.
+GNU ld issued a warning about a LOAD segment with RWX permissions when the code and data were linked into the same segment. Both generated ELF files were verified under U-Boot.
+
+</details>
 
 ## Troubleshooting
 
